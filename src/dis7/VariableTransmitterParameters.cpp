@@ -1,11 +1,30 @@
 #include <dis7/VariableTransmitterParameters.h>
 
+#include <stdexcept>
+
 using namespace DIS;
+
+namespace
+{
+// Record Type (4 octets) + Record Length (2 octets)
+const std::size_t kHeaderOctets = 6;
+
+// Zero octets that end a record holding `recordSpecificOctets` on a 64-bit boundary.
+std::size_t paddingOctets(std::size_t recordSpecificOctets)
+{
+    return (8 - (kHeaderOctets + recordSpecificOctets) % 8) % 8;
+}
+
+std::size_t totalOctets(std::size_t recordSpecificOctets)
+{
+    return kHeaderOctets + recordSpecificOctets + paddingOctets(recordSpecificOctets);
+}
+}
 
 
 VariableTransmitterParameters::VariableTransmitterParameters():
-   _recordType(4), 
-   _recordLength(4)
+   _recordType(0), 
+   _recordSpecificFields()
 {
 }
 
@@ -23,26 +42,66 @@ void VariableTransmitterParameters::setRecordType(unsigned int pX)
     _recordType = pX;
 }
 
-unsigned int VariableTransmitterParameters::getRecordLength() const
+unsigned short VariableTransmitterParameters::getRecordLength() const
 {
-    return _recordLength;
+    const std::size_t length = totalOctets(_recordSpecificFields.size());
+    if(length > 0xFFFF)
+    {
+        throw std::length_error("VariableTransmitterParameters: record exceeds the 16-bit Record Length");
+    }
+    return static_cast<unsigned short>(length);
 }
 
-void VariableTransmitterParameters::setRecordLength(unsigned int pX)
+std::vector<unsigned char>& VariableTransmitterParameters::getRecordSpecificFields()
 {
-    _recordLength = pX;
+    return _recordSpecificFields;
+}
+
+const std::vector<unsigned char>& VariableTransmitterParameters::getRecordSpecificFields() const
+{
+    return _recordSpecificFields;
+}
+
+void VariableTransmitterParameters::setRecordSpecificFields(const std::vector<unsigned char>& pX)
+{
+    _recordSpecificFields = pX;
 }
 
 void VariableTransmitterParameters::marshal(DataStream& dataStream) const
 {
+    const unsigned short recordLength = getRecordLength(); // throws before anything is written
     dataStream << _recordType;
-    dataStream << _recordLength;
+    dataStream << recordLength;
+
+    for(std::size_t idx = 0; idx < _recordSpecificFields.size(); idx++)
+    {
+        dataStream << _recordSpecificFields[idx];
+    }
+
+    const unsigned char zero = 0;
+    for(std::size_t idx = paddingOctets(_recordSpecificFields.size()); idx > 0; idx--)
+    {
+        dataStream << zero;
+    }
 }
 
 void VariableTransmitterParameters::unmarshal(DataStream& dataStream)
 {
+    unsigned short recordLength = 0;
     dataStream >> _recordType;
-    dataStream >> _recordLength;
+    dataStream >> recordLength;
+
+    if(recordLength < kHeaderOctets)
+    {
+        throw std::length_error("VariableTransmitterParameters: Record Length is shorter than the record header");
+    }
+
+    _recordSpecificFields.clear();
+    _recordSpecificFields.resize(recordLength - kHeaderOctets);
+    for(std::size_t idx = 0; idx < _recordSpecificFields.size(); idx++)
+    {
+        dataStream >> _recordSpecificFields[idx];
+    }
 }
 
 
@@ -51,18 +110,14 @@ bool VariableTransmitterParameters::operator ==(const VariableTransmitterParamet
      bool ivarsEqual = true;
 
      if( ! (_recordType == rhs._recordType) ) ivarsEqual = false;
-     if( ! (_recordLength == rhs._recordLength) ) ivarsEqual = false;
+     if( ! (_recordSpecificFields == rhs._recordSpecificFields) ) ivarsEqual = false;
 
     return ivarsEqual;
  }
 
 int VariableTransmitterParameters::getMarshalledSize() const
 {
-   int marshalSize = 0;
-
-   marshalSize = marshalSize + 4;  // _recordType
-   marshalSize = marshalSize + 4;  // _recordLength
-    return marshalSize;
+   return static_cast<int>(totalOctets(_recordSpecificFields.size()));
 }
 
 // Copyright (c) 1995-2009 held by the author(s).  All rights reserved.

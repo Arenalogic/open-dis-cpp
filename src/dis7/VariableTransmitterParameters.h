@@ -2,11 +2,21 @@
 
 #include <dis7/utils/DataStream.h>
 #include <dis7/opendis7_export.h>
+#include <vector>
 
 
 namespace DIS
 {
-// Relates to radios. NOT COMPLETE. Section 6.2.94
+// Variable Transmitter Parameters (VTP) record. IEEE 1278.1-2012 6.2.95, Table 130:
+// Record Type (32-bit enumeration), Record Length (16-bit, total octets in the
+// record = 6 + K + P), K octets of record-specific fields, then P padding octets
+// so the record ends on a 64-bit boundary.
+//
+// The record-specific octets are stored raw. The stored octets may already
+// include the trailing padding; marshal appends zero octets as needed so the
+// record always ends on a 64-bit boundary. Record Length is derived from the
+// stored octets. unmarshal stores all Record Length - 6 octets that follow the
+// header, padding included.
 
 // Copyright (c) 2007-2009, MOVES Institute, Naval Postgraduate School. All rights reserved. 
 //
@@ -18,8 +28,8 @@ protected:
   /** Type of VTP. Enumeration from EBV */
   unsigned int _recordType; 
 
-  /** Length, in bytes */
-  unsigned int _recordLength; 
+  /** Record-specific fields, raw, possibly including trailing padding */
+  std::vector<unsigned char> _recordSpecificFields;
 
 
  public:
@@ -32,8 +42,13 @@ protected:
     unsigned int getRecordType() const; 
     void setRecordType(unsigned int pX); 
 
-    unsigned int getRecordLength() const; 
-    void setRecordLength(unsigned int pX); 
+    /** Total record length in octets (6 + K + P), derived from the stored octets.
+        Throws std::length_error when the record does not fit the 16-bit field. */
+    unsigned short getRecordLength() const; 
+
+    std::vector<unsigned char>& getRecordSpecificFields(); 
+    const std::vector<unsigned char>& getRecordSpecificFields() const; 
+    void setRecordSpecificFields(const std::vector<unsigned char>& pX);
 
 
 virtual int getMarshalledSize() const;
