@@ -122,7 +122,23 @@ bool VariableTransmitterParameters::operator ==(const VariableTransmitterParamet
      bool ivarsEqual = true;
 
      if( ! (_recordType == rhs._recordType) ) ivarsEqual = false;
-     if( ! (_recordSpecificFields == rhs._recordSpecificFields) ) ivarsEqual = false;
+
+     // Compare the record-specific fields as marshal writes them, zero-padded
+     // to the 64-bit boundary: a record and its own round trip (which stores
+     // the padding octets) compare equal.
+     const std::size_t lhsOctets = _recordSpecificFields.size();
+     const std::size_t rhsOctets = rhs._recordSpecificFields.size();
+     const std::size_t paddedOctets = lhsOctets + paddingOctets(lhsOctets);
+     if( ! (paddedOctets == rhsOctets + paddingOctets(rhsOctets)) ) ivarsEqual = false;
+     else
+     {
+         for(std::size_t idx = 0; idx < paddedOctets; idx++)
+         {
+             const unsigned char lhs = idx < lhsOctets ? _recordSpecificFields[idx] : 0;
+             const unsigned char rhsOctet = idx < rhsOctets ? rhs._recordSpecificFields[idx] : 0;
+             if( ! (lhs == rhsOctet) ) { ivarsEqual = false; break; }
+         }
+     }
 
     return ivarsEqual;
  }

@@ -18,7 +18,8 @@ namespace DIS
 // stored octets. unmarshal stores all Record Length - 6 octets that follow the
 // header, padding included; it throws std::length_error for a Record Length
 // that is not a positive multiple of 8, and std::out_of_range for one the
-// remaining input cannot hold.
+// remaining input cannot hold. operator== compares the record as marshal
+// writes it, so stored trailing padding octets do not make records differ.
 
 // Copyright (c) 2007-2009, MOVES Institute, Naval Postgraduate School. All rights reserved. 
 //

@@ -1070,3 +1070,44 @@ TEST_CASE("dis7 VariableTransmitterParameters checks the input before sizing its
   REQUIRE(vtp.getRecordSpecificFields().empty());
   REQUIRE(vtp.getRecordType() == 0u);
 }
+
+TEST_CASE("dis7 VariableTransmitterParameters compares the record as it goes on the wire", "[dis7][VTP][VTPEquality]")
+{
+  // 3 record-specific octets: the round trip stores 10 (the 3 plus the 7
+  // padding octets), and the two marshal to the same 16 octets.
+  DIS::VariableTransmitterParameters three;
+  three.setRecordType(3);
+  const unsigned char fields[] = {0xC1, 0xC2, 0xC3};
+  three.setRecordSpecificFields(Bytes(fields, fields + 3));
+  DIS::VariableTransmitterParameters threeBack;
+  Unmarshal(Marshal(three), threeBack);
+  REQUIRE(threeBack.getRecordSpecificFields().size() == 10);
+  CHECK(three == threeBack);
+  CHECK(threeBack == three);
+
+  // An empty record and its round trip (2 stored padding octets).
+  DIS::VariableTransmitterParameters empty;
+  DIS::VariableTransmitterParameters emptyBack;
+  Unmarshal(Marshal(empty), emptyBack);
+  REQUIRE(emptyBack.getRecordSpecificFields().size() == 2);
+  CHECK(empty == emptyBack);
+
+  // Stored data that already includes its padding equals the unpadded form.
+  DIS::VariableTransmitterParameters prePadded;
+  prePadded.setRecordType(3);
+  const unsigned char padded[] = {0xC1, 0xC2, 0xC3, 0, 0, 0, 0, 0, 0, 0};
+  prePadded.setRecordSpecificFields(Bytes(padded, padded + sizeof(padded)));
+  CHECK(prePadded == three);
+
+  // Records that differ on the wire still differ.
+  DIS::VariableTransmitterParameters otherType(three);
+  otherType.setRecordType(4);
+  CHECK_FALSE(otherType == three);
+  DIS::VariableTransmitterParameters nonZeroTail(prePadded);
+  nonZeroTail.getRecordSpecificFields()[9] = 0x01;
+  CHECK_FALSE(nonZeroTail == three);
+  DIS::VariableTransmitterParameters longer(prePadded);
+  longer.getRecordSpecificFields().resize(18, 0x00);  // a 24-octet record
+  CHECK_FALSE(longer == three);
+  CHECK_FALSE(three == longer);
+}
