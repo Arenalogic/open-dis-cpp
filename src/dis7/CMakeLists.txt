@@ -164,6 +164,7 @@ set(dis7_hdr
   SystemIdentifier.h
   TotalRecordSets.h
   TrackJamData.h
+  TransmitterPdu.h
   TwoByteChunk.h
   UAFundamentalParameter.h
   UaPdu.h
@@ -343,6 +344,7 @@ set(dis7_src
   SystemIdentifier.cpp
   TotalRecordSets.cpp
   TrackJamData.cpp
+  TransmitterPdu.cpp
   TwoByteChunk.cpp
   UAFundamentalParameter.cpp
   UaPdu.cpp
