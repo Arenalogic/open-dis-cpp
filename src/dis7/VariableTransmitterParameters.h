@@ -16,7 +16,9 @@ namespace DIS
 // include the trailing padding; marshal appends zero octets as needed so the
 // record always ends on a 64-bit boundary. Record Length is derived from the
 // stored octets. unmarshal stores all Record Length - 6 octets that follow the
-// header, padding included.
+// header, padding included; it throws std::length_error for a Record Length
+// that is not a positive multiple of 8, and std::out_of_range for one the
+// remaining input cannot hold.
 
 // Copyright (c) 2007-2009, MOVES Institute, Naval Postgraduate School. All rights reserved. 
 //

@@ -1034,3 +1034,39 @@ TEST_CASE("dis7 SignalPdu writes the unused bits of a partial last octet as zero
     REQUIRE(Marshal(one)[32] == static_cast<unsigned char>(0xFF << (8 - k)));
   }
 }
+
+TEST_CASE("dis7 VariableTransmitterParameters refuses a Record Length off the 64-bit grid", "[dis7][VTP][VTPRecordLength]")
+{
+  // 6.2.95: Record Length is the whole record in octets, padded to a 64-bit
+  // boundary, so it is a multiple of 8 and at least 8 (the 6-octet header plus
+  // padding). Each input carries 16 octets after the header, so a refusal is
+  // about the Record Length itself, not truncated input.
+  const unsigned short lengths[] = {6, 7, 9, 12};
+  for (std::size_t i = 0; i < sizeof(lengths) / sizeof(lengths[0]); ++i)
+  {
+    INFO("Record Length = " << lengths[i]);
+    Bytes wire;
+    const unsigned char header[] = {0x00, 0x00, 0x00, 0x01,  // Record Type
+                                    static_cast<unsigned char>(lengths[i] >> 8),
+                                    static_cast<unsigned char>(lengths[i] & 0xFF)};  // Record Length
+    wire.insert(wire.end(), header, header + sizeof(header));
+    wire.resize(wire.size() + 16, 0x00);
+    DIS::VariableTransmitterParameters vtp;
+    CHECK_THROWS_AS(Unmarshal(wire, vtp), std::length_error);
+  }
+}
+
+TEST_CASE("dis7 VariableTransmitterParameters checks the input before sizing its fields", "[dis7][VTP][VTPRecordLength]")
+{
+  // Record Length 65528 (a valid multiple of 8) with only 10 octets after the
+  // header: refused before the record-specific fields are sized for it.
+  const unsigned char wire[] = {
+    0x00, 0x00, 0x00, 0x01,                                      // Record Type
+    0xFF, 0xF8,                                                  // Record Length
+    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A,  // 10 octets, far short
+  };
+  DIS::VariableTransmitterParameters vtp;
+  REQUIRE_THROWS_AS(Unmarshal(Bytes(wire, wire + sizeof(wire)), vtp), std::out_of_range);
+  REQUIRE(vtp.getRecordSpecificFields().empty());
+  REQUIRE(vtp.getRecordType() == 0u);
+}

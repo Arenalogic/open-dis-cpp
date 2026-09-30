@@ -87,17 +87,29 @@ void VariableTransmitterParameters::marshal(DataStream& dataStream) const
 
 void VariableTransmitterParameters::unmarshal(DataStream& dataStream)
 {
+    unsigned int recordType = 0;
     unsigned short recordLength = 0;
-    dataStream >> _recordType;
+    dataStream >> recordType;
     dataStream >> recordLength;
 
-    if(recordLength < kHeaderOctets)
+    // The record ends on a 64-bit boundary: Record Length is a multiple of 8
+    // and at least 8 (the header plus its padding).
+    if(recordLength < 8 || recordLength % 8 != 0)
     {
-        throw std::length_error("VariableTransmitterParameters: Record Length is shorter than the record header");
+        throw std::length_error("VariableTransmitterParameters: Record Length is not a positive multiple of 8 octets");
     }
 
+    // Refuse a length the input cannot hold before sizing the fields for it.
+    // std::out_of_range is what DataStream throws for a read past its end.
+    const std::size_t recordSpecificOctets = recordLength - kHeaderOctets;
+    if(recordSpecificOctets > dataStream.size() - dataStream.GetReadPos())
+    {
+        throw std::out_of_range("VariableTransmitterParameters: Record Length exceeds the remaining input");
+    }
+
+    _recordType = recordType;
     _recordSpecificFields.clear();
-    _recordSpecificFields.resize(recordLength - kHeaderOctets);
+    _recordSpecificFields.resize(recordSpecificOctets);
     for(std::size_t idx = 0; idx < _recordSpecificFields.size(); idx++)
     {
         dataStream >> _recordSpecificFields[idx];
