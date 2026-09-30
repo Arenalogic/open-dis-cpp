@@ -147,6 +147,7 @@ set(dis7_hdr
   ServiceRequestPdu.h
   SetDataPdu.h
   SetDataReliablePdu.h
+  SignalPdu.h
   SimulationAddress.h
   SimulationIdentifier.h
   SimulationManagementFamilyPdu.h
@@ -327,6 +328,7 @@ set(dis7_src
   ServiceRequestPdu.cpp
   SetDataPdu.cpp
   SetDataReliablePdu.cpp
+  SignalPdu.cpp
   SimulationAddress.cpp
   SimulationIdentifier.cpp
   SimulationManagementFamilyPdu.cpp
