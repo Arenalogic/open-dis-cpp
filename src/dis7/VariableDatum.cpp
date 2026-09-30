@@ -58,8 +58,10 @@ void VariableDatum::setVariableDatums(const char* x, const unsigned int length)
     _arrayLength = chunks * 8;
 
     // .resize() might (theoretically) throw. want to catch? : what to do? zombie datum?
-    if(_variableDatums.size() < length)
-        _variableDatums.resize(length);
+    // marshal writes _arrayLength octets (the value padded to 64 bits), so the
+    // buffer must hold the padding too, not only the value.
+    if(_variableDatums.size() < _arrayLength)
+        _variableDatums.resize(_arrayLength);
 
     for(unsigned int i = 0; i < length; i++)
     {
@@ -88,8 +90,10 @@ void VariableDatum::unmarshal(DataStream& dataStream)
     dataStream >> _variableDatumID;
     dataStream >> _variableDatumLength;
 
-    int byteLength = _variableDatumLength / 8;
-	int chunks = byteLength / 8;
+    // The Variable Datum Length is in bits and need not fill the last octet:
+    // the value occupies ceil(length / 8) octets, padded to 64 bits.
+    unsigned int byteLength = (_variableDatumLength + 7) / 8;
+	unsigned int chunks = byteLength / 8;
 	if(byteLength % 8 > 0)
 		chunks++;
 	_arrayLength = chunks * 8;

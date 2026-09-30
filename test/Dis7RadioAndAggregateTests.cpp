@@ -12,6 +12,7 @@
 #include <dis7/AggregateStatePdu.h>
 #include <dis7/SignalPdu.h>
 #include <dis7/TransmitterPdu.h>
+#include <dis7/VariableDatum.h>
 #include <dis7/VariableTransmitterParameters.h>
 #include <dis7/utils/DataStream.h>
 
@@ -900,4 +901,51 @@ TEST_CASE("dis7 AggregateStatePdu refuses lists larger than their count fields",
   DIS::SilentEntitySystem s;
   s.getAppearanceRecordList().resize(65536);
   REQUIRE_THROWS_AS(s.marshal(ds), std::length_error);
+}
+
+// Variable Datum record (6.2.93): ID (32), Length K in bits (32), value of
+// ceil(K/8) octets padded to a 64-bit boundary.
+TEST_CASE("dis7 VariableDatum reads a partial-octet length to the right boundary", "[dis7][VariableDatum]")
+{
+  // K = 65 bits: 9 value octets, padded to 16. A reader that takes floor(K/8)
+  // octets reads 8 and leaves the next record 8 octets early.
+  Bytes wire = {0x00, 0x00, 0x00, 0x2A,   // Variable Datum ID 42
+                0x00, 0x00, 0x00, 0x41};  // Variable Datum Length 65 bits
+  for (int i = 0; i < 16; ++i)
+  {
+    wire.push_back(i < 9 ? static_cast<unsigned char>(0xA0 + i) : 0x00);
+  }
+  wire.push_back(0xEE);  // first octet of whatever follows the record
+
+  DIS::VariableDatum datum;
+  REQUIRE(Unmarshal(wire, datum) == 24u);
+  REQUIRE(datum.getVariableDatumLength() == 65u);
+  REQUIRE(datum.getMarshalledSize() == 24);
+  REQUIRE(Marshal(datum) == Bytes(wire.begin(), wire.begin() + 24));
+}
+
+TEST_CASE("dis7 VariableDatum marshals a long value with its padding in bounds", "[dis7][VariableDatum]")
+{
+  // 130 octets: more than the record's initial buffer and not a multiple of 8,
+  // so marshal writes 136 octets and the buffer must hold them.
+  std::vector<char> value(130, 0x5A);
+  DIS::VariableDatum datum;
+  datum.setVariableDatumID(7);
+  datum.setVariableDatums(value.data(), static_cast<unsigned int>(value.size()));
+
+  const Bytes wire = Marshal(datum);
+  REQUIRE(wire.size() == 8u + 136u);
+  REQUIRE(datum.getMarshalledSize() == 144);
+  for (std::size_t i = 8; i < 8 + 130; ++i)
+  {
+    REQUIRE(wire[i] == 0x5A);
+  }
+  for (std::size_t i = 8 + 130; i < wire.size(); ++i)
+  {
+    REQUIRE(wire[i] == 0x00);
+  }
+
+  DIS::VariableDatum back;
+  REQUIRE(Unmarshal(wire, back) == wire.size());
+  REQUIRE(Marshal(back) == wire);
 }
