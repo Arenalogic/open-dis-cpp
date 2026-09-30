@@ -148,6 +148,8 @@ set(dis7_hdr
   SetDataPdu.h
   SetDataReliablePdu.h
   SignalPdu.h
+  SilentAggregateSystem.h
+  SilentEntitySystem.h
   SimulationAddress.h
   SimulationIdentifier.h
   SimulationManagementFamilyPdu.h
@@ -329,6 +331,8 @@ set(dis7_src
   SetDataPdu.cpp
   SetDataReliablePdu.cpp
   SignalPdu.cpp
+  SilentAggregateSystem.cpp
+  SilentEntitySystem.cpp
   SimulationAddress.cpp
   SimulationIdentifier.cpp
   SimulationManagementFamilyPdu.cpp
