@@ -245,6 +245,11 @@ Bytes SignalWireWithK(unsigned int k, const Bytes& data)
   };
   Bytes w(head, head + sizeof(head));
   w.insert(w.end(), data.begin(), data.end());
+  // The unused low-order bits of a partial last octet are padding and zero.
+  if (k % 8 != 0 && !data.empty())
+  {
+    w.back() = static_cast<unsigned char>(w.back() & (0xFF << (8 - k % 8)));
+  }
   w.resize(w.size() + padding, 0x00);
   return w;
 }
@@ -988,4 +993,44 @@ TEST_CASE("dis7 VariableDatum refuses a large length before sizing its buffer", 
   };
   DIS::VariableDatum datum3;
   REQUIRE(Unmarshal(Bytes(exact, exact + sizeof(exact)), datum3) == sizeof(exact));
+}
+
+TEST_CASE("dis7 SignalPdu writes the unused bits of a partial last octet as zero", "[dis7][SignalPdu][SignalPaddingBits]")
+{
+  // Table 178: K data bits, then P padding bits to the 32-bit boundary. DIS
+  // is most-significant-bit first, so with K = 9 the second octet holds 1
+  // data bit (its high bit) and 7 padding bits.
+  //
+  //  off  size  field                                   value (hex)
+  //  28    2    Data Length (K, bits)                   00 09
+  //  32    1    Data, bits 0-7                          FF
+  //  33    1    Data bit 8, then 7 padding bits         80
+  //  34    2    Padding to 32-bit boundary              00 00
+  DIS::SignalPdu p;
+  const unsigned char data[] = {0xFF, 0xFF};
+  p.setData(std::vector<uint8_t>(data, data + 2));
+  p.setDataLength(9);
+
+  const Bytes wire = Marshal(p);
+  REQUIRE(wire.size() == 36);
+  REQUIRE(U16At(wire, 28) == 9);
+  const unsigned char expectedTail[] = {0xFF, 0x80, 0x00, 0x00};
+  REQUIRE(Bytes(wire.begin() + 32, wire.end()) == Bytes(expectedTail, expectedTail + 4));
+  REQUIRE(p.getData()[1] == 0xFF);  // the stored data is not changed
+
+  // Padding bits are not data: the round trip compares equal.
+  DIS::SignalPdu got;
+  REQUIRE(Unmarshal(wire, got) == wire.size());
+  REQUIRE(got.getData()[1] == 0x80);
+  REQUIRE(got == p);
+
+  // Every partial length of a single octet keeps only its high K bits.
+  for (unsigned short k = 1; k < 8; ++k)
+  {
+    INFO("K = " << k);
+    DIS::SignalPdu one;
+    one.setData(std::vector<uint8_t>(1, 0xFF));
+    one.setDataLength(k);
+    REQUIRE(Marshal(one)[32] == static_cast<unsigned char>(0xFF << (8 - k)));
+  }
 }

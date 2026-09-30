@@ -21,7 +21,9 @@ namespace DIS
 // (so a received PDU with a partial last octet re-marshals bit-exact);
 // otherwise Data Length is the data size in octets * 8. Data of 8192 octets or
 // more cannot be described by the 16-bit Data Length: setData and marshal throw
-// std::length_error for it.
+// std::length_error for it. The unused low-order bits of a partial last octet
+// are padding: marshal writes them as zero (the stored data is not changed)
+// and operator== ignores them.
 
 class OPENDIS7_EXPORT SignalPdu : public RadioCommunicationsFamilyPdu
 {

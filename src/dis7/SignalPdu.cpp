@@ -27,6 +27,19 @@ std::size_t effectiveDataLength(unsigned short storedBits, std::size_t dataOctet
 {
     return octetsForBits(storedBits) == dataOctets ? storedBits : dataOctets * 8;
 }
+
+// Data octet `idx` as it goes on the wire for a Data Length of `bits`. The
+// low-order 8 - bits % 8 bits of a partial last octet are padding (DIS is
+// most-significant-bit first) and are written as zero.
+unsigned char wireOctet(const std::vector<uint8_t>& data, std::size_t idx, std::size_t bits)
+{
+    const unsigned char octet = data[idx];
+    if(bits % 8 != 0 && idx == data.size() - 1)
+    {
+        return static_cast<unsigned char>(octet & (0xFF << (8 - bits % 8)));
+    }
+    return octet;
+}
 }
 
 
@@ -142,7 +155,7 @@ void SignalPdu::marshal(DataStream& dataStream) const
 
     for(std::size_t idx = 0; idx < _data.size(); idx++)
     {
-        dataStream << _data[idx];
+        dataStream << wireOctet(_data, idx, dataLength);
     }
 
     const unsigned char zero = 0;
@@ -188,11 +201,20 @@ bool SignalPdu::operator ==(const SignalPdu& rhs) const
      if( ! (_tdlType == rhs._tdlType) ) ivarsEqual = false;
      if( ! (_sampleRate == rhs._sampleRate) ) ivarsEqual = false;
      if( ! (_samples == rhs._samples) ) ivarsEqual = false;
-     if( ! (_data == rhs._data) ) ivarsEqual = false;
      // Compare Data Length the way marshal derives it, without its throw for
      // oversized data: comparison never throws.
-     if( ! (effectiveDataLength(_dataLength, _data.size()) ==
-            effectiveDataLength(rhs._dataLength, rhs._data.size())) ) ivarsEqual = false;
+     const std::size_t bits = effectiveDataLength(_dataLength, _data.size());
+     if( ! (bits == effectiveDataLength(rhs._dataLength, rhs._data.size())) ) ivarsEqual = false;
+     // Compare the data as it goes on the wire: the padding bits of a
+     // partial last octet are not data.
+     if( ! (_data.size() == rhs._data.size()) ) ivarsEqual = false;
+     else
+     {
+         for(std::size_t idx = 0; idx < _data.size(); idx++)
+         {
+             if( ! (wireOctet(_data, idx, bits) == wireOctet(rhs._data, idx, bits)) ) { ivarsEqual = false; break; }
+         }
+     }
 
     return ivarsEqual;
  }
