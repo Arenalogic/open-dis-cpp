@@ -1,5 +1,7 @@
 #include <dis7/VariableDatum.h>
 
+#include <stdexcept>
+
 using namespace DIS;
 
 
@@ -87,16 +89,28 @@ void VariableDatum::marshal(DataStream& dataStream) const
 
 void VariableDatum::unmarshal(DataStream& dataStream)
 {
-    dataStream >> _variableDatumID;
-    dataStream >> _variableDatumLength;
+    unsigned int variableDatumID = 0;
+    unsigned int variableDatumLength = 0;
+    dataStream >> variableDatumID;
+    dataStream >> variableDatumLength;
 
     // The Variable Datum Length is in bits and need not fill the last octet:
-    // the value occupies ceil(length / 8) octets, padded to 64 bits.
-    unsigned int byteLength = (_variableDatumLength + 7) / 8;
-	unsigned int chunks = byteLength / 8;
-	if(byteLength % 8 > 0)
-		chunks++;
-	_arrayLength = chunks * 8;
+    // the value occupies ceil(length / 8) octets, padded to 64 bits. 64-bit
+    // arithmetic, so lengths near 2^32 do not wrap.
+    const unsigned long long byteLength =
+        variableDatumLength / 8ULL + (variableDatumLength % 8 > 0 ? 1 : 0);
+    const unsigned long long paddedLength = (byteLength + 7) / 8 * 8;
+
+    // Refuse a length the input cannot hold before sizing a buffer for it.
+    // std::out_of_range is what DataStream throws for a read past its end.
+    if(paddedLength > dataStream.size() - dataStream.GetReadPos())
+    {
+        throw std::out_of_range("VariableDatum: Variable Datum Length exceeds the remaining input");
+    }
+
+    _variableDatumID = variableDatumID;
+    _variableDatumLength = variableDatumLength;
+    _arrayLength = static_cast<unsigned int>(paddedLength);
 
 	//std::cout << "Variable datum #" << (int)_variableDatumID << " arrayLength=" << (int)_arrayLength << " ";
 

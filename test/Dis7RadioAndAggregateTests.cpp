@@ -949,3 +949,43 @@ TEST_CASE("dis7 VariableDatum marshals a long value with its padding in bounds",
   REQUIRE(Unmarshal(wire, back) == wire.size());
   REQUIRE(Marshal(back) == wire);
 }
+
+TEST_CASE("dis7 VariableDatum refuses a length that wraps 32-bit arithmetic", "[dis7][VariableDatum][VariableDatumBounds]")
+{
+  // K = 0xFFFFFFFF bits needs 0x20000000 value octets. Computed as (K + 7) / 8
+  // in 32 bits, K + 7 wraps to 6 and the record reads 0 octets, leaving the
+  // stream 8 octets into the record's value.
+  const unsigned char maxLength[] = {
+    0x00, 0x00, 0x00, 0x01,                          // Variable Datum ID
+    0xFF, 0xFF, 0xFF, 0xFF,                          // Variable Datum Length (K)
+    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,  // 8 value octets, far short of K
+  };
+  DIS::VariableDatum datum;
+  REQUIRE_THROWS_AS(Unmarshal(Bytes(maxLength, maxLength + sizeof(maxLength)), datum), std::out_of_range);
+  REQUIRE(datum.getVariableDatumLength() == 0u);
+  REQUIRE(datum.getMarshalledSize() == 8);
+}
+
+TEST_CASE("dis7 VariableDatum refuses a large length before sizing its buffer", "[dis7][VariableDatum][VariableDatumBounds]")
+{
+  // A large K that does not wrap (about 512 MiB of value) with a short input
+  // is refused before a buffer is sized for it: the record keeps its empty
+  // value, where sizing first would leave the claimed length behind.
+  const unsigned char largeLength[] = {
+    0x00, 0x00, 0x00, 0x01,                          // Variable Datum ID
+    0xFF, 0xFF, 0xFF, 0xF0,                          // Variable Datum Length (K)
+    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+  };
+  DIS::VariableDatum datum2;
+  REQUIRE_THROWS_AS(Unmarshal(Bytes(largeLength, largeLength + sizeof(largeLength)), datum2), std::out_of_range);
+  REQUIRE(datum2.getVariableDatumLength() == 0u);
+  REQUIRE(datum2.getMarshalledSize() == 8);
+
+  // The same length check passes a record whose value is all there.
+  const unsigned char exact[] = {
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x40,  // K = 64 bits
+    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+  };
+  DIS::VariableDatum datum3;
+  REQUIRE(Unmarshal(Bytes(exact, exact + sizeof(exact)), datum3) == sizeof(exact));
+}
