@@ -11,6 +11,7 @@ set(dis7_hdr
   ActionResponseReliablePdu.h
   AggregateIdentifier.h
   AggregateMarking.h
+  AggregateStatePdu.h
   AggregateType.h
   AngleDeception.h
   AngularVelocityVector.h
@@ -194,6 +195,7 @@ set(dis7_src
   ActionResponseReliablePdu.cpp
   AggregateIdentifier.cpp
   AggregateMarking.cpp
+  AggregateStatePdu.cpp
   AggregateType.cpp
   AngleDeception.cpp
   AngularVelocityVector.cpp
