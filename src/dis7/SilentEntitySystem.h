@@ -12,8 +12,9 @@ namespace DIS
 // Entities (16-bit), Number of Appearance Records (A, 16-bit), Entity Type
 // record, then A 32-bit Entity Appearance records. 96 + 32A bits.
 //
-// A is derived from the appearance record list on marshal; marshal throws
-// std::length_error when the list does not fit the 16-bit count.
+// A is derived from the appearance record list. getNumberOfAppearanceRecords,
+// and so marshal, throw std::length_error when the list does not fit the
+// 16-bit count.
 
 class OPENDIS7_EXPORT SilentEntitySystem
 {

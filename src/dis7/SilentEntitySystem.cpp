@@ -1,8 +1,24 @@
 #include <dis7/SilentEntitySystem.h>
 
+#include <limits>
 #include <stdexcept>
 
 using namespace DIS;
+
+namespace
+{
+// A container size as the value of its count field. Throws std::length_error
+// when the size does not fit the field, instead of wrapping.
+template <typename Count>
+Count checkedCount(std::size_t size, const char* message)
+{
+    if(size > static_cast<std::size_t>(std::numeric_limits<Count>::max()))
+    {
+        throw std::length_error(message);
+    }
+    return static_cast<Count>(size);
+}
+}
 
 
 SilentEntitySystem::SilentEntitySystem():
@@ -28,7 +44,8 @@ void SilentEntitySystem::setNumberOfEntities(unsigned short pX)
 
 unsigned short SilentEntitySystem::getNumberOfAppearanceRecords() const
 {
-   return static_cast<unsigned short>(_appearanceRecordList.size());
+   return checkedCount<unsigned short>(_appearanceRecordList.size(),
+       "SilentEntitySystem: more Entity Appearance records than the 16-bit count holds");
 }
 
 EntityType& SilentEntitySystem::getEntityType()
@@ -63,13 +80,11 @@ void SilentEntitySystem::setAppearanceRecordList(const std::vector<unsigned int>
 
 void SilentEntitySystem::marshal(DataStream& dataStream) const
 {
-    if(_appearanceRecordList.size() > 0xFFFF)
-    {
-        throw std::length_error("SilentEntitySystem: more Entity Appearance records than the 16-bit count holds");
-    }
+    // Throws for a list larger than its field, before anything is written.
+    const unsigned short numberOfAppearanceRecords = getNumberOfAppearanceRecords();
 
     dataStream << _numberOfEntities;
-    dataStream << getNumberOfAppearanceRecords();
+    dataStream << numberOfAppearanceRecords;
     _entityType.marshal(dataStream);
 
     for(std::size_t idx = 0; idx < _appearanceRecordList.size(); idx++)

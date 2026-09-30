@@ -1111,3 +1111,54 @@ TEST_CASE("dis7 VariableTransmitterParameters compares the record as it goes on 
   CHECK_FALSE(longer == three);
   CHECK_FALSE(three == longer);
 }
+
+TEST_CASE("dis7 count getters refuse containers larger than their fields", "[dis7][CountGetters]")
+{
+  bool equal = false;
+
+  // TransmitterPdu: M is 8 bits, A and N are 16 bits.
+  DIS::TransmitterPdu t;
+  t.getModulationParametersList().resize(255);
+  t.getAntennaPatternList().resize(65535);
+  t.getVariableTransmitterParametersList().resize(65535);
+  CHECK(t.getModulationParameterCount() == 255);
+  CHECK(t.getAntennaPatternCount() == 65535);
+  CHECK(t.getVariableTransmitterParameterCount() == 65535);
+  t.getModulationParametersList().resize(256);
+  t.getAntennaPatternList().resize(65536);
+  t.getVariableTransmitterParametersList().resize(65536);
+  CHECK_THROWS_AS(t.getModulationParameterCount(), std::length_error);
+  CHECK_THROWS_AS(t.getAntennaPatternCount(), std::length_error);
+  CHECK_THROWS_AS(t.getVariableTransmitterParameterCount(), std::length_error);
+  CHECK_NOTHROW(t.getMarshalledSize());
+  CHECK_NOTHROW(equal = (t == t));
+  CHECK(equal);
+
+  // SilentEntitySystem: A is 16 bits.
+  DIS::SilentEntitySystem s;
+  s.getAppearanceRecordList().resize(65535);
+  CHECK(s.getNumberOfAppearanceRecords() == 65535);
+  s.getAppearanceRecordList().resize(65536);
+  CHECK_THROWS_AS(s.getNumberOfAppearanceRecords(), std::length_error);
+  CHECK_NOTHROW(s.getMarshalledSize());
+  CHECK_NOTHROW(equal = (s == s));
+  CHECK(equal);
+
+  // AggregateStatePdu: W, J, N and S are 16 bits. (M is 32 bits; a list that
+  // overflows it cannot be built in a test.)
+  DIS::AggregateStatePdu a;
+  a.getAggregateIDList().resize(65536);
+  a.getEntityIDList().resize(65536);
+  a.getSilentAggregateSystemList().resize(65536);
+  a.getSilentEntitySystemList().resize(65536);
+  CHECK_THROWS_AS(a.getNumberOfDisAggregates(), std::length_error);
+  CHECK_THROWS_AS(a.getNumberOfDisEntities(), std::length_error);
+  CHECK_THROWS_AS(a.getNumberOfSilentAggregateTypes(), std::length_error);
+  CHECK_THROWS_AS(a.getNumberOfSilentEntityTypes(), std::length_error);
+  CHECK(a.getNumberOfVariableDatumRecords() == 0u);
+  CHECK_NOTHROW(a.getMarshalledSize());
+  CHECK_NOTHROW(equal = (a == a));
+  CHECK(equal);
+  a.getAggregateIDList().resize(65535);
+  CHECK(a.getNumberOfDisAggregates() == 65535);
+}

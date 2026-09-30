@@ -1,11 +1,24 @@
 #include <dis7/AggregateStatePdu.h>
 
+#include <limits>
 #include <stdexcept>
 
 using namespace DIS;
 
 namespace
 {
+// A container size as the value of its count field. Throws std::length_error
+// when the size does not fit the field, instead of wrapping.
+template <typename Count>
+Count checkedCount(std::size_t size, const char* message)
+{
+    if(size > static_cast<std::size_t>(std::numeric_limits<Count>::max()))
+    {
+        throw std::length_error(message);
+    }
+    return static_cast<Count>(size);
+}
+
 // Aggregate ID and Entity ID records are both 48 bits.
 const std::size_t kIdRecordOctets = 6;
 
@@ -179,22 +192,26 @@ void AggregateStatePdu::setVelocity(const Vector3Float &pX)
 
 unsigned short AggregateStatePdu::getNumberOfDisAggregates() const
 {
-   return static_cast<unsigned short>(_aggregateIDList.size());
+   return checkedCount<unsigned short>(_aggregateIDList.size(),
+       "AggregateStatePdu: more Aggregate IDs than the 16-bit count holds");
 }
 
 unsigned short AggregateStatePdu::getNumberOfDisEntities() const
 {
-   return static_cast<unsigned short>(_entityIDList.size());
+   return checkedCount<unsigned short>(_entityIDList.size(),
+       "AggregateStatePdu: more Entity IDs than the 16-bit count holds");
 }
 
 unsigned short AggregateStatePdu::getNumberOfSilentAggregateTypes() const
 {
-   return static_cast<unsigned short>(_silentAggregateSystemList.size());
+   return checkedCount<unsigned short>(_silentAggregateSystemList.size(),
+       "AggregateStatePdu: more Silent Aggregate Systems than the 16-bit count holds");
 }
 
 unsigned short AggregateStatePdu::getNumberOfSilentEntityTypes() const
 {
-   return static_cast<unsigned short>(_silentEntitySystemList.size());
+   return checkedCount<unsigned short>(_silentEntitySystemList.size(),
+       "AggregateStatePdu: more Silent Entity Systems than the 16-bit count holds");
 }
 
 std::vector<AggregateIdentifier>& AggregateStatePdu::getAggregateIDList()
@@ -259,7 +276,8 @@ void AggregateStatePdu::setSilentEntitySystemList(const std::vector<SilentEntity
 
 unsigned int AggregateStatePdu::getNumberOfVariableDatumRecords() const
 {
-   return static_cast<unsigned int>(_variableDatumList.size());
+   return checkedCount<unsigned int>(_variableDatumList.size(),
+       "AggregateStatePdu: more Variable Datum records than the 32-bit count holds");
 }
 
 std::vector<VariableDatum>& AggregateStatePdu::getVariableDatumList()
@@ -279,11 +297,13 @@ void AggregateStatePdu::setVariableDatumList(const std::vector<VariableDatum>& p
 
 void AggregateStatePdu::marshal(DataStream& dataStream) const
 {
-    if(_aggregateIDList.size() > 0xFFFF || _entityIDList.size() > 0xFFFF ||
-       _silentAggregateSystemList.size() > 0xFFFF || _silentEntitySystemList.size() > 0xFFFF)
-    {
-        throw std::length_error("AggregateStatePdu: a list exceeds its 16-bit count");
-    }
+    // The count getters throw for a list larger than its field; take the
+    // counts before anything is written.
+    const unsigned short numberOfDisAggregates = getNumberOfDisAggregates();
+    const unsigned short numberOfDisEntities = getNumberOfDisEntities();
+    const unsigned short numberOfSilentAggregateTypes = getNumberOfSilentAggregateTypes();
+    const unsigned short numberOfSilentEntityTypes = getNumberOfSilentEntityTypes();
+    const unsigned int numberOfVariableDatumRecords = getNumberOfVariableDatumRecords();
 
     EntityManagementFamilyPdu::marshal(dataStream); // Marshal information in superclass first
     _aggregateID.marshal(dataStream);
@@ -296,10 +316,10 @@ void AggregateStatePdu::marshal(DataStream& dataStream) const
     _orientation.marshal(dataStream);
     _centerOfMass.marshal(dataStream);
     _velocity.marshal(dataStream);
-    dataStream << getNumberOfDisAggregates();
-    dataStream << getNumberOfDisEntities();
-    dataStream << getNumberOfSilentAggregateTypes();
-    dataStream << getNumberOfSilentEntityTypes();
+    dataStream << numberOfDisAggregates;
+    dataStream << numberOfDisEntities;
+    dataStream << numberOfSilentAggregateTypes;
+    dataStream << numberOfSilentEntityTypes;
 
     for(std::size_t idx = 0; idx < _aggregateIDList.size(); idx++)
     {
@@ -327,7 +347,7 @@ void AggregateStatePdu::marshal(DataStream& dataStream) const
         _silentEntitySystemList[idx].marshal(dataStream);
     }
 
-    dataStream << getNumberOfVariableDatumRecords();
+    dataStream << numberOfVariableDatumRecords;
 
     for(std::size_t idx = 0; idx < _variableDatumList.size(); idx++)
     {

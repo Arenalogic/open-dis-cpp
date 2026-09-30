@@ -24,8 +24,9 @@ namespace DIS
 // followed by W Aggregate IDs, J Entity IDs, padding to a 32-bit boundary
 // (2 octets when W + J is odd), N Silent Aggregate Systems, S Silent Entity
 // Systems, the Number of Variable Datum Records (M, 32-bit) and M Variable
-// Datum records. All counts are derived from the list sizes on marshal;
-// marshal throws std::length_error when a list does not fit its 16-bit count.
+// Datum records. All counts are derived from the list sizes. The count
+// getters, and so marshal, throw std::length_error when a list does not fit
+// its count field; getMarshalledSize and operator== do not throw.
 
 class OPENDIS7_EXPORT AggregateStatePdu : public EntityManagementFamilyPdu
 {

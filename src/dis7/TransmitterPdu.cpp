@@ -1,8 +1,24 @@
 #include <dis7/TransmitterPdu.h>
 
+#include <limits>
 #include <stdexcept>
 
 using namespace DIS;
+
+namespace
+{
+// A container size as the value of its count field. Throws std::length_error
+// when the size does not fit the field, instead of wrapping.
+template <typename Count>
+Count checkedCount(std::size_t size, const char* message)
+{
+    if(size > static_cast<std::size_t>(std::numeric_limits<Count>::max()))
+    {
+        throw std::length_error(message);
+    }
+    return static_cast<Count>(size);
+}
+}
 
 
 TransmitterPdu::TransmitterPdu() : RadioCommunicationsFamilyPdu(),
@@ -66,7 +82,8 @@ void TransmitterPdu::setInputSource(unsigned char pX)
 
 unsigned short TransmitterPdu::getVariableTransmitterParameterCount() const
 {
-   return static_cast<unsigned short>(_variableTransmitterParametersList.size());
+   return checkedCount<unsigned short>(_variableTransmitterParametersList.size(),
+       "TransmitterPdu: more Variable Transmitter Parameters records than the 16-bit count holds");
 }
 
 Vector3Double& TransmitterPdu::getAntennaLocation()
@@ -111,7 +128,8 @@ void TransmitterPdu::setAntennaPatternType(unsigned short pX)
 
 unsigned short TransmitterPdu::getAntennaPatternCount() const
 {
-   return static_cast<unsigned short>(_antennaPatternList.size());
+   return checkedCount<unsigned short>(_antennaPatternList.size(),
+       "TransmitterPdu: antenna pattern exceeds the 16-bit Antenna Pattern Length");
 }
 
 unsigned long long TransmitterPdu::getFrequency() const
@@ -181,7 +199,8 @@ void TransmitterPdu::setCryptoKeyId(unsigned short pX)
 
 unsigned char TransmitterPdu::getModulationParameterCount() const
 {
-   return static_cast<unsigned char>(_modulationParametersList.size());
+   return checkedCount<unsigned char>(_modulationParametersList.size(),
+       "TransmitterPdu: modulation parameters exceed the 8-bit Length of Modulation Parameters");
 }
 
 std::vector<unsigned char>& TransmitterPdu::getModulationParametersList()
@@ -231,37 +250,28 @@ void TransmitterPdu::setVariableTransmitterParametersList(const std::vector<Vari
 
 void TransmitterPdu::marshal(DataStream& dataStream) const
 {
-    // The counts are narrow wire fields: refuse what they cannot hold rather
-    // than truncate a count and desynchronise the parameter records section.
-    if(_modulationParametersList.size() > 0xFF)
-    {
-        throw std::length_error("TransmitterPdu: modulation parameters exceed the 8-bit Length of Modulation Parameters");
-    }
-    if(_antennaPatternList.size() > 0xFFFF)
-    {
-        throw std::length_error("TransmitterPdu: antenna pattern exceeds the 16-bit Antenna Pattern Length");
-    }
-    if(_variableTransmitterParametersList.size() > 0xFFFF)
-    {
-        throw std::length_error("TransmitterPdu: more Variable Transmitter Parameters records than the 16-bit count holds");
-    }
+    // The count getters throw for a container larger than its field; take the
+    // counts before anything is written.
+    const unsigned short variableTransmitterParameterCount = getVariableTransmitterParameterCount();
+    const unsigned short antennaPatternCount = getAntennaPatternCount();
+    const unsigned char modulationParameterCount = getModulationParameterCount();
 
     RadioCommunicationsFamilyPdu::marshal(dataStream); // Marshal information in superclass first
     _radioEntityType.marshal(dataStream);
     dataStream << _transmitState;
     dataStream << _inputSource;
-    dataStream << getVariableTransmitterParameterCount();
+    dataStream << variableTransmitterParameterCount;
     _antennaLocation.marshal(dataStream);
     _relativeAntennaLocation.marshal(dataStream);
     dataStream << _antennaPatternType;
-    dataStream << getAntennaPatternCount();
+    dataStream << antennaPatternCount;
     dataStream << _frequency;
     dataStream << _transmitFrequencyBandwidth;
     dataStream << _power;
     _modulationType.marshal(dataStream);
     dataStream << _cryptoSystem;
     dataStream << _cryptoKeyId;
-    dataStream << getModulationParameterCount();
+    dataStream << modulationParameterCount;
 
     // 8 bits then 16 bits of unused padding
     const unsigned char padding8 = 0;

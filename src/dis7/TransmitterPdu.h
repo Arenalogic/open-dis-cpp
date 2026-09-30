@@ -20,8 +20,9 @@ namespace DIS
 // the parameter records section: the Modulation Parameters record (M octets,
 // raw), the Antenna Pattern record (A octets, raw) and the Variable Transmitter
 // Parameters records. M, A and the VTP record count are derived from the
-// container sizes on marshal; marshal throws std::length_error when a container
-// does not fit its count field.
+// container sizes on marshal. The count getters, and so marshal, throw
+// std::length_error when a container does not fit its count field;
+// getMarshalledSize and operator== do not throw.
 
 class OPENDIS7_EXPORT TransmitterPdu : public RadioCommunicationsFamilyPdu
 {
